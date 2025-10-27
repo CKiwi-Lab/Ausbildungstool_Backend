@@ -1,3 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+env/
+
+# SQLite DB files
+*.sqlite3
+*.db
+azubi.db
+
+# Environment
+.env
+*.env
+
+# IDEs
+.vscode/
+.idea/
+
+# Byte-compiled / caches
+.pytest_cache/
+.mypy_cache/
+
+# Logs
+*.log
 # This .gitignore is appropriate for repositories deployed to GitHub Pages and using
 # a Gemfile as specified at https://github.com/github/pages-gem#conventional
 
