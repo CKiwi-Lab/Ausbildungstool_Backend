@@ -92,3 +92,41 @@ def create_calendar_event(event: schemas.CalendarEventBase, db: Session = Depend
     db.commit()
     db.refresh(db_event)
     return db_event
+
+
+@app.delete("/calendar/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_calendar_event(event_id: int, user_id: int, db: Session = Depends(get_db)):
+    """Löscht ein Kalenderereignis nach ID, prüft dabei den user_id-Parameter auf Besitzrecht."""
+    db_event = db.query(models.CalendarEvent).filter(models.CalendarEvent.id == event_id).first()
+    if not db_event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    if db_event.user_id != user_id:
+        raise HTTPException(status_code=403, detail="Not allowed to delete this event")
+    db.delete(db_event)
+    db.commit()
+    return
+
+
+@app.put("/calendar/{event_id}", response_model=schemas.CalendarEvent)
+def update_calendar_event(event_id: int, event: schemas.CalendarEventBase, db: Session = Depends(get_db)):
+    """Aktualisiert ein vorhandenes Kalenderereignis. Prüft Besitz über event.user_id."""
+    db_event = db.query(models.CalendarEvent).filter(models.CalendarEvent.id == event_id).first()
+    if not db_event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    # Ownership check: caller must provide the same user_id
+    if db_event.user_id != event.user_id:
+        raise HTTPException(status_code=403, detail="Not allowed to modify this event")
+
+    # Update only provided fields (CalendarEventBase has optional fields)
+    if event.title is not None:
+        db_event.title = event.title
+    if event.description is not None:
+        db_event.description = event.description
+    if event.start is not None:
+        db_event.start = event.start
+    if event.end is not None:
+        db_event.end = event.end
+
+    db.commit()
+    db.refresh(db_event)
+    return db_event
