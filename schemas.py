@@ -23,6 +23,7 @@ class CalendarEventBase(BaseModel):
     description: Optional[str] = None
     start: Optional[datetime] = None
     end: Optional[datetime] = None
+    created: Optional[datetime] = None
 
 
 class CalendarEvent(CalendarEventBase):

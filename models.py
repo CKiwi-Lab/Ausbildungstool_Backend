@@ -1,6 +1,6 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, String, Text, DateTime
 from database import Base
+from datetime import datetime
 
 
 class Document(Base):
@@ -22,3 +22,4 @@ class CalendarEvent(Base):
     description = Column(Text)
     start = Column(DateTime)
     end = Column(DateTime)
+    created = Column(DateTime, default=datetime.utcnow)

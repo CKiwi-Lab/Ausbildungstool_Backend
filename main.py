@@ -5,6 +5,7 @@ import models, schemas
 from database import engine, Base, get_db
 from typing import List
 from datetime import datetime, timedelta
+from fastapi import status
 
 
 app = FastAPI(title="Ausbildungstool Backend", description="Ein FastAPI-Projekt mit SQLite + SQLAlchemy")
@@ -75,15 +76,17 @@ def get_calendar(user_id: int, db: Session = Depends(get_db)):
     return events
 
 
-@app.post("/calendar", response_model=schemas.CalendarEvent)
+@app.post("/calendar", response_model=schemas.CalendarEvent, status_code=status.HTTP_201_CREATED)
 def create_calendar_event(event: schemas.CalendarEventBase, db: Session = Depends(get_db)):
-    """Erstellt ein neues Kalenderereignis. Erwartet das CalendarEventBase Schema (user_id, title, description, start, end)."""
+    """Erstellt ein neues Kalenderereignis. Erwartet das CalendarEventBase Schema (user_id, title, description, start, end, optional created)."""
+    created_ts = event.created or datetime.utcnow()
     db_event = models.CalendarEvent(
         user_id=event.user_id,
         title=event.title,
         description=event.description,
         start=event.start,
         end=event.end,
+        created=created_ts,
     )
     db.add(db_event)
     db.commit()
