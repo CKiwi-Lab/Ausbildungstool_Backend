@@ -16,7 +16,12 @@ Base.metadata.create_all(bind=engine)
 # CORS (erlaubt lokalen Frontend-Devserver)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000", "http://127.0.0.1:3000"],
+    # include common vite ports (5173, 5174) used by the frontend dev server
+    allow_origins=[
+        "http://localhost:5173", "http://127.0.0.1:5173",
+        "http://localhost:5174", "http://127.0.0.1:5174",
+        "http://localhost:3000", "http://127.0.0.1:3000",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -91,6 +96,8 @@ def create_calendar_event(event: schemas.CalendarEventBase, db: Session = Depend
     db.add(db_event)
     db.commit()
     db.refresh(db_event)
+    # simple log to help debugging from dev server logs
+    print(f"Created calendar event: id={db_event.id} user_id={db_event.user_id} title={db_event.title}")
     return db_event
 
 
