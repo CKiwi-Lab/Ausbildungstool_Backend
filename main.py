@@ -6,6 +6,7 @@ from database import engine, Base, get_db
 from typing import List
 from datetime import datetime, timedelta
 from fastapi import status
+from fastapi import Body
 
 
 app = FastAPI(title="Ausbildungstool Backend", description="Ein FastAPI-Projekt mit SQLite + SQLAlchemy")
@@ -99,6 +100,111 @@ def create_calendar_event(event: schemas.CalendarEventBase, db: Session = Depend
     # simple log to help debugging from dev server logs
     print(f"Created calendar event: id={db_event.id} user_id={db_event.user_id} title={db_event.title}")
     return db_event
+
+
+@app.get("/tasks", response_model=List[schemas.Task])
+def get_tasks(user_id: int, db: Session = Depends(get_db)):
+    """Gibt alle Tasks für einen Benutzer zurück."""
+    tasks = db.query(models.Task).filter(models.Task.user_id == user_id).all()
+    return tasks
+
+
+@app.post("/tasks", response_model=schemas.Task, status_code=status.HTTP_201_CREATED)
+def create_task(task: schemas.TaskCreate, db: Session = Depends(get_db)):
+    """Erstellt eine Aufgabe. Wenn `deadline` angegeben wird, wird automatisch ein Kalendereintrag erstellt und referenziert."""
+    db_task = models.Task(
+        user_id=task.user_id,
+        title=task.title,
+        description=task.description,
+        deadline=task.deadline,
+        completed=task.completed or False,
+    )
+    # create calendar event if deadline set
+    if task.deadline:
+        cal = models.CalendarEvent(
+            user_id=task.user_id,
+            title=f"Deadline: {task.title}",
+            description=task.description or '',
+            start=task.deadline,
+            end=(task.deadline + timedelta(hours=1)) if task.deadline else None,
+            created=datetime.utcnow(),
+        )
+        db.add(cal)
+        db.commit()
+        db.refresh(cal)
+        db_task.calendar_event_id = cal.id
+
+    db.add(db_task)
+    db.commit()
+    db.refresh(db_task)
+    return db_task
+
+
+@app.put("/tasks/{task_id}", response_model=schemas.Task)
+def update_task(task_id: int, payload: schemas.TaskUpdate = Body(...), db: Session = Depends(get_db)):
+    """Aktualisiert eine Aufgabe. Synchronisiert den zugehörigen Kalender-Eintrag, falls vorhanden."""
+    db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
+    if not db_task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    # Ownership check: require payload.user_id? TaskUpdate doesn't include user_id; we assume caller is owner for now
+    # Update fields
+    if payload.title is not None:
+        db_task.title = payload.title
+    if payload.description is not None:
+        db_task.description = payload.description
+    if payload.deadline is not None:
+        db_task.deadline = payload.deadline
+    if payload.completed is not None:
+        db_task.completed = payload.completed
+
+    # Sync calendar event
+    if db_task.calendar_event_id:
+        cal = db.query(models.CalendarEvent).filter(models.CalendarEvent.id == db_task.calendar_event_id).first()
+        if cal:
+            # if deadline removed => delete calendar entry
+            if not db_task.deadline:
+                db.delete(cal)
+                db_task.calendar_event_id = None
+            else:
+                cal.title = f"Deadline: {db_task.title}"
+                cal.description = db_task.description or ''
+                cal.start = db_task.deadline
+                cal.end = db_task.deadline + timedelta(hours=1) if db_task.deadline else None
+    else:
+        # no calendar event yet but deadline present => create one
+        if db_task.deadline:
+            cal = models.CalendarEvent(
+                user_id=db_task.user_id,
+                title=f"Deadline: {db_task.title}",
+                description=db_task.description or '',
+                start=db_task.deadline,
+                end=db_task.deadline + timedelta(hours=1),
+                created=datetime.utcnow(),
+            )
+            db.add(cal)
+            db.commit()
+            db.refresh(cal)
+            db_task.calendar_event_id = cal.id
+
+    db.commit()
+    db.refresh(db_task)
+    return db_task
+
+
+@app.delete("/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_task(task_id: int, db: Session = Depends(get_db)):
+    db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
+    if not db_task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    # delete linked calendar event if exists
+    if db_task.calendar_event_id:
+        cal = db.query(models.CalendarEvent).filter(models.CalendarEvent.id == db_task.calendar_event_id).first()
+        if cal:
+            db.delete(cal)
+    db.delete(db_task)
+    db.commit()
+    return
 
 
 @app.delete("/calendar/{event_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -31,3 +31,30 @@ class CalendarEvent(CalendarEventBase):
 
     class Config:
         orm_mode = True
+
+
+class TaskBase(BaseModel):
+    user_id: int
+    title: Optional[str] = None
+    description: Optional[str] = None
+    deadline: Optional[datetime] = None
+    completed: Optional[bool] = False
+
+
+class TaskCreate(TaskBase):
+    pass
+
+
+class TaskUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    deadline: Optional[datetime] = None
+    completed: Optional[bool] = None
+
+
+class Task(TaskBase):
+    id: int
+    calendar_event_id: Optional[int] = None
+
+    class Config:
+        orm_mode = True
